@@ -1,4 +1,5 @@
-name: "Terraform Workflow"
+name: "Terraform Worflow"
+
 
 on:
   workflow_call:
@@ -19,50 +20,52 @@ on:
         type: string
         required: true
 
-jobs:
-  terraform:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    jobs:
+      terraform:
+        runs-on: ubuntu-latest
+        defaults:
+          run:
+            shell: bash
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.8.3
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ inputs.aws-assume-role-arn }}
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: ${{ inputs.aws-region }}
+          - name: Setup Terraform
+            uses: hashicorp/setup-terraform@v3
+            with:
+              terraform_version: 1.8.3
+
+          - name: Configure AWS credentials
+            uses: aws-actions/configure-aws-credentials@v4
+            with:
+            role-to-assume: ${{ inputs.aws-assume-role-arn }}
+            role-session-name: GitHub_to_AWS_via_FederatedOIDC
+            aws-region: ${{ inputs.aws-region }}
+
+          - name: Terraform Init
+            run:
+              cd infra && terraform init \
+                -backend-config="bucket=${{ inputs.aws-statefile-s3-bucket }}" \
+                -backend-config="key=${{ github.event.repository.name }}" \
+                -backend-config="region=${{ inputs.aws-region }}" \
+                -backend-config="dynamodb_table=${{ inputs.aws-lock-dynamodb-table }}"
+
+          - name: Terraform Validate
+            run: terraform validate
+
+          - name: Terraform Plan
+            id: terraform-plan
+            run: cd infra &&
+              terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
+              terraform plan -var-file="./envs/${{ inputs.environment }}/terraform.tfvars" -out="${{ inputs.environment }}.plan"
+
+          - name: Terraform Apply
+            id: terraform-apply
+            run: cd infra &&
+              terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
+              terraform apply "${{ inputs.environment }}.plan"
 
 
-      - name: Terraform Init
-        run: |
-          cd infra && terraform init \
-            -backend-config="bucket=${{ inputs.aws-statefile-s3-bucket }}" \
-            -backend-config="key=${{ github.event.repository.name }}" \
-            -backend-config="region=${{ inputs.aws-region }}" \
-            -backend-config="dynamodb_table=${{ inputs.aws-lock-dynamodb-table }}"
 
-      - name: Terraform Validate
-        run: terraform validate
-
-
-      - name: Terraform Plan
-        id: terraform-plan
-        run: cd infra &&
-          terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
-          terraform plan -var-file="./envs/${{ inputs.environment }}/terraform.tfvars" -out="${{ inputs.environment }}.plan"
-
-      - name: Terraform Apply
-        id: terraform-apply
-        run: cd infra &&
-          terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
-          terraform apply "${{ inputs.environment }}.plan"
