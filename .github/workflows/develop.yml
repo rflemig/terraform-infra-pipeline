@@ -1,9 +1,9 @@
-name: "PROD DEPLOY"
+name: "DEV DEPLOY"
 
 on:
   push:
     branches:
-      - main
+      - develop
 
 permissions:
   id-token: write
@@ -13,7 +13,7 @@ jobs:
   terraform:
     uses: ./.github/workflows/terraform.yml
     with:
-      environment: prod
+      environment: dev
       aws-assume-role-arn: "arn:aws:iam::227163777560:role/github-actions-rflemig-pipeline"
       aws-region: "sa-east-1"
       aws-statefile-s3-bucket: "rflemig-sa-east-1-terraform"
